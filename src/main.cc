@@ -76,16 +76,18 @@ std::wstring GetCommand(const wchar_t *exeFolder) {
   int nArgs;
   LPWSTR *szArglist = CommandLineToArgvW(GetCommandLineW(), &nArgs);
 
-  command_line.push_back(L"--force-local-ntp"); // Order???
-  // TODO: absolute path
-  command_line.push_back(L"--user-data-dir=\"User Data\"");
+  // Keep argv[0]
+  command_line.push_back(szArglist[0]);
+
+  // Custom switches first, enable to override from terminal
+  command_line.push_back(L"--user-data-dir=\"User Data\""); // TODO: absolute
+  command_line.push_back(L"--force-local-ntp");
   command_line.push_back(L"--enable-features=OverlayScrollbar");
   command_line.push_back(L"--disable-features=RendererCodeIntegrity,ReadLater");
 
-  // Keep original args, skip argv[0]
-  for (int i = 1; i < nArgs; i++) {
+  // Keep original args, skip argb[0]
+  for (int i = 1; i < nArgs; i++)
     command_line.push_back(QuotePathIfNeeded(szArglist[i]));
-  }
   LocalFree(szArglist);
 
   std::wstring my_command_line;
