@@ -76,9 +76,9 @@ std::wstring GetCommand(const wchar_t *exeFolder) {
   int nArgs;
   LPWSTR *szArglist = CommandLineToArgvW(GetCommandLineW(), &nArgs);
 
+  command_line.push_back(L"--force-local-ntp"); // Order???
   // TODO: absolute path
   command_line.push_back(L"--user-data-dir=\"User Data\"");
-  command_line.push_back(L"--force-local-ntp");
   command_line.push_back(L"--enable-features=OverlayScrollbar");
   command_line.push_back(L"--disable-features=RendererCodeIntegrity,ReadLater");
 
