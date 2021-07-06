@@ -72,6 +72,7 @@ std::wstring GetCommand(const wchar_t *exeFolder) {
   LPWSTR *szArglist = CommandLineToArgvW(GetCommandLineW(), &nArgs);
 
   command_line.push_back(L"--force-local-ntp"); // Order?
+  command_line.push_back(L"--user-data-dir=user_data_test");
 
   for (int i = 1; i < nArgs; i++) { // Skip argv[0]
     // 保留原来参数
@@ -156,7 +157,7 @@ void GreenChrome() {
   _wsplitpath(exePath, nullptr, exeDir, nullptr, nullptr);
 
   // CustomUserData(iniPath);
-  // MakePortable(iniPath);
+  // MakePortable();
 
   // 父进程不是Chrome，则需要启动追加参数功能
   wchar_t parentPath[MAX_LONGPATH];
