@@ -19,6 +19,6 @@ This project is still developing.
 
 ### Build
 
-```batch
-rd /s /q build && md build && cd build && cmake -G "Ninja" .. && ninja
-```
+You need [CMake](https://cmake.org) and [Ninja](https://ninja-build.org), then run `build.bat`.
+
+Use [setdll](https://github.com/Microsoft/Detours/tree/master/samples/setdll) to attach the DLL file.
