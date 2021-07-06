@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include <windows.h>
+#include <winnt.h>
 
 #ifdef _WIN64
 typedef uint64_t MWORD;
@@ -13,8 +14,11 @@ typedef uint64_t MWORD;
 typedef uint32_t MWORD;
 #endif
 
-void DebugLog(LPCWSTR lpCaption, LPCWSTR lpText) {
-  MessageBoxW(NULL, lpText, lpCaption, MB_OK);
+void AssertMsg(bool condition, std::string msg) {
+  if (!condition) {
+    MessageBox(NULL, msg.c_str(), "ERROR", MB_OK);
+    exit(1);
+  }
 }
 
 typedef struct {
@@ -106,9 +110,6 @@ void CustomCommand(const wchar_t *exeFolder, const wchar_t *exePath,
                    bool first_run) {
   std::vector<HANDLE> program_handles;
   // if (first_run) {
-  //   // 启动更新器
-  //   LaunchUpdater(iniPath, exeFolder);
-
   //   // 启动时运行
   //   LaunchAtStart(iniPath, exeFolder, program_handles);
   // }
@@ -121,34 +122,34 @@ void CustomCommand(const wchar_t *exeFolder, const wchar_t *exePath,
   // 根据配置文件插入额外的命令行参数
   std::wstring my_command_line = GetCommand(exeFolder);
 
-  if (CreateProcessW(exePath, (LPWSTR)my_command_line.c_str(), NULL, NULL,
-                     false,
-                     CREATE_NEW_CONSOLE | CREATE_UNICODE_ENVIRONMENT |
-                         CREATE_DEFAULT_ERROR_MODE,
-                     NULL, 0, &si, &pi)) {
-    if (first_run) {
-      WaitForSingleObject(pi.hProcess, INFINITE);
+  BOOL s = CreateProcessW(exePath, (LPWSTR)my_command_line.c_str(), NULL, NULL,
+                          false,
+                          CREATE_NEW_CONSOLE | CREATE_UNICODE_ENVIRONMENT |
+                              CREATE_DEFAULT_ERROR_MODE,
+                          NULL, 0, &si, &pi);
+  AssertMsg(s, "CreateProcessW failed");
 
-      // 释放句柄
-      CloseHandle(FirstRun);
+  if (first_run) {
+    WaitForSingleObject(pi.hProcess, INFINITE);
 
-      // 结束时杀掉启动时运行的程序
-      // KillAtEnd(iniPath, program_handles);
+    // 释放句柄
+    CloseHandle(FirstRun);
 
-      // 结束时运行
-      // LaunchAtEnd(iniPath, exeFolder);
-    }
-
-    CloseHandle(pi.hProcess);
-    CloseHandle(pi.hThread);
-
-    ExitProcess(0);
-  } else {
-    DebugLog(L"CreateProcessW failed:%d", (LPCWSTR)GetLastError());
+    // 结束时运行
+    // LaunchAtEnd(iniPath, exeFolder);
   }
+
+  CloseHandle(pi.hProcess);
+  CloseHandle(pi.hThread);
+
+  ExitProcess(0);
 }
 
-void GreenChrome() {
+HMODULE hInstance;
+typedef int (*Startup)();
+Startup OriginEntry = NULL;
+
+int Loader() {
   const size_t MAX_LONGPATH = 2 * MAX_PATH;
   // Could not use `_pgmptr` in DLL
   wchar_t exePath[MAX_LONGPATH]; // Mitigating errors caused by long path
@@ -161,64 +162,31 @@ void GreenChrome() {
 
   // 父进程不是Chrome，则需要启动追加参数功能
   wchar_t parentPath[MAX_LONGPATH];
-  if (GetParentPath(parentPath)) {
-    if (_wcsicmp(parentPath, exePath) != 0) {
-      // MessageBoxA(NULL, "Once", "LPCSTR lpCaption", MB_OK);
-      // if (PathFileExistsW(parentPath) && _wcsicmp(parentPath, exePath) != 0)
-      // { 启动单次功能
-      bool first_run = IsFirstRun();
-      CustomCommand(exeDir, exePath, first_run);
-    }
-  } else {
-    // DebugLog(L"GetParentPath failed");
-    exit(1);
+  GetParentPath(parentPath);
+  if (_wcsicmp(parentPath, exePath) != 0) {
+    // MessageBoxA(NULL, "Once", "LPCSTR lpCaption", MB_OK);
+    // if (PathFileExistsW(parentPath) && _wcsicmp(parentPath, exePath) != 0)
+    // { 启动单次功能
+    bool first_run = IsFirstRun();
+    CustomCommand(exeDir, exePath, first_run);
   }
-}
-
-HMODULE hInstance;
-typedef int (*Startup)();
-Startup ChromeMain = NULL;
-
-int Loader() {
-  GreenChrome();
-
-  //返回到Chrome
-  // ChromeMain();
-  return ChromeMain();
-}
-
-void InstallLoader() {
-  //获取程序入口点
-  MODULEINFO mi;
-  GetModuleInformation(GetCurrentProcess(), GetModuleHandle(NULL), &mi,
-                       sizeof(MODULEINFO));
-  LPVOID entry = mi.EntryPoint;
-
-  // 入口点跳转到Loader
-  MH_STATUS status =
-      MH_CreateHook(entry, (LPVOID)Loader, (LPVOID *)&ChromeMain);
-  if (status == MH_OK) {
-    MH_EnableHook(entry);
-  } else {
-    // DebugLog(L"MH_CreateHook InstallLoader failed:%d", status);
-    exit(1);
-  }
+  // Return to origin
+  return OriginEntry();
 }
 
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
   if (fdwReason != DLL_PROCESS_ATTACH)
-    return TRUE;
+    return TRUE; // Skip
   hInstance = hinstDLL;
 
-  // 初始化HOOK库成功以后安装加载器
-  MH_STATUS status = MH_Initialize();
-  if (status == MH_OK) {
-    InstallLoader();
-  } else {
-    // DebugLog(L"MH_Initialize failed:%d", status);
-    exit(1);
-  }
-  return TRUE; // Successful DLL_PROCESS_ATTACH.
+  MODULEINFO moduleInfo = {0};
+  GetModuleInformation(GetCurrentProcess(), GetModuleHandle(NULL), &moduleInfo,
+                       sizeof(MODULEINFO));
+  LPVOID entry = moduleInfo.EntryPoint;
+  MH_Initialize();
+  MH_CreateHook(entry, (LPVOID)Loader, (LPVOID *)&OriginEntry);
+  MH_EnableHook(entry);
+  return TRUE;
 }
 
 // =======================================
