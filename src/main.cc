@@ -1,4 +1,5 @@
 #include "MinHook.h"
+#include "patch.cc"
 #include <corecrt.h>
 #include <psapi.h>
 #include <shlwapi.h>
@@ -157,7 +158,7 @@ int Loader() {
   GetModuleFileNameW(NULL, exePath, MAX_LONGPATH);
   _wsplitpath(exePath, nullptr, exeDir, nullptr, nullptr);
 
-  // MakePortable();
+  MakePortable();
 
   // 父进程不是Chrome，则需要启动追加参数功能
   wchar_t parentPath[MAX_LONGPATH];
@@ -187,5 +188,3 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
   MH_EnableHook(entry);
   return TRUE;
 }
-
-// =======================================
