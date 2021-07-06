@@ -13,7 +13,9 @@ This project is still developing.
 
 ### Todo List
 
-0. Clean code.
+0. BUG: open file by explorer when the browser is already running, `CreateProcessW` failed?
+
+1. Clean code.
 
 ### Build
 
