@@ -157,7 +157,6 @@ int Loader() {
   GetModuleFileNameW(NULL, exePath, MAX_LONGPATH);
   _wsplitpath(exePath, nullptr, exeDir, nullptr, nullptr);
 
-  // CustomUserData(iniPath);
   // MakePortable();
 
   // 父进程不是Chrome，则需要启动追加参数功能
