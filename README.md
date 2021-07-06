@@ -14,3 +14,8 @@ This project is still developing.
 ### Todo List
 
 0. Avaliable to use.
+
+```
+clang++ src/main.cc -o crknob.dll -I D:/Code/crknob/third_party/minhook/include -Wl,-Bstatic,-LD:/Code/crknob/third_party/minhook,-lminhook,-lshlwapi -shared
+clang++ src/temp.cc && a
+```
