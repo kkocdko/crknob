@@ -13,7 +13,7 @@ This project is still developing.
 
 ### Todo List
 
-0. Avaliable to use.
+0. Clean code.
 
 ### Build
 

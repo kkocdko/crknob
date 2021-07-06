@@ -76,11 +76,14 @@ std::wstring GetCommand(const wchar_t *exeFolder) {
   int nArgs;
   LPWSTR *szArglist = CommandLineToArgvW(GetCommandLineW(), &nArgs);
 
-  command_line.push_back(L"--force-local-ntp"); // Order?
-  command_line.push_back(L"--user-data-dir=user_data_test");
+  // TODO: absolute path
+  command_line.push_back(L"--user-data-dir=\"User Data\"");
+  command_line.push_back(L"--force-local-ntp");
+  command_line.push_back(L"--enable-features=OverlayScrollbar");
+  command_line.push_back(L"--disable-features=RendererCodeIntegrity,ReadLater");
 
-  for (int i = 1; i < nArgs; i++) { // Skip argv[0]
-    // 保留原来参数
+  // Keep original args, skip argv[0]
+  for (int i = 1; i < nArgs; i++) {
     command_line.push_back(QuotePathIfNeeded(szArglist[i]));
   }
   LocalFree(szArglist);
