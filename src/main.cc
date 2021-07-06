@@ -71,7 +71,7 @@ std::wstring GetCommand(const wchar_t *exeFolder) {
   int nArgs;
   LPWSTR *szArglist = CommandLineToArgvW(GetCommandLineW(), &nArgs);
 
-  command_line.push_back(L"--force-local-ntp");
+  command_line.push_back(L"--force-local-ntp"); // Order?
 
   for (int i = 1; i < nArgs; i++) { // Skip argv[0]
     // 保留原来参数
@@ -86,6 +86,18 @@ std::wstring GetCommand(const wchar_t *exeFolder) {
   }
 
   return my_command_line;
+}
+
+HANDLE FirstRun;
+bool IsFirstRun() {
+  bool first_run = false;
+  FirstRun =
+      CreateMutexW(NULL, TRUE, L"{56A17F97-9F89-4926-8415-446649F25EB5}");
+  if (GetLastError() == ERROR_SUCCESS) {
+    first_run = true;
+  }
+
+  return first_run;
 }
 
 // 自定义启动参数
@@ -117,7 +129,7 @@ void CustomCommand(const wchar_t *exeFolder, const wchar_t *exePath,
       WaitForSingleObject(pi.hProcess, INFINITE);
 
       // 释放句柄
-      // CloseHandle(FirstRun);
+      CloseHandle(FirstRun);
 
       // 结束时杀掉启动时运行的程序
       // KillAtEnd(iniPath, program_handles);
@@ -133,18 +145,6 @@ void CustomCommand(const wchar_t *exeFolder, const wchar_t *exePath,
   } else {
     DebugLog(L"CreateProcessW failed:%d", (LPCWSTR)GetLastError());
   }
-}
-
-HANDLE FirstRun;
-bool IsFirstRun() {
-  bool first_run = false;
-  FirstRun =
-      CreateMutexW(NULL, TRUE, L"{56A17F97-9F89-4926-8415-446649F25EB5}");
-  if (GetLastError() == ERROR_SUCCESS) {
-    first_run = true;
-  }
-
-  return first_run;
 }
 
 void GreenChrome() {
