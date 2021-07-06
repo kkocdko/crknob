@@ -61,54 +61,43 @@ bool GetParentPath(wchar_t *path) {
   return false;
 }
 
-inline std::wstring QuotePathIfNeeded(const std::wstring &path) {
-  std::vector<wchar_t> buffer(path.length() + 1 /* null */ + 2 /* quotes */);
-  wcscpy(&buffer[0], path.c_str());
-
-  PathQuoteSpaces((LPSTR)&buffer[0]); // TODO: impl self
-
-  return std::wstring(&buffer[0]);
-}
-
 std::wstring GetCommand(const wchar_t *exeFolder) {
-  std::vector<std::wstring> command_line;
+  std::vector<std::wstring> args;
 
-  int nArgs;
-  LPWSTR *szArglist = CommandLineToArgvW(GetCommandLineW(), &nArgs);
+  int originArgsLen;
+  LPWSTR *originArgs = CommandLineToArgvW(GetCommandLineW(), &originArgsLen);
 
   // Keep argv[0]
-  command_line.push_back(szArglist[0]);
+  args.push_back(originArgs[0]);
 
   // Custom switches first, enable to override from terminal
-  command_line.push_back(L"--user-data-dir=\"User Data\""); // TODO: absolute
-  command_line.push_back(L"--force-local-ntp");
-  command_line.push_back(L"--enable-features=OverlayScrollbar");
-  command_line.push_back(L"--disable-features=RendererCodeIntegrity,ReadLater");
+  args.push_back(L"--user-data-dir=\"User Data\""); // TODO: absolute
+  args.push_back(L"--force-local-ntp");
+  args.push_back(L"--enable-features=OverlayScrollbar");
+  args.push_back(L"--disable-features=RendererCodeIntegrity,ReadLater");
 
-  // Keep original args, skip argb[0]
-  for (int i = 1; i < nArgs; i++)
-    command_line.push_back(QuotePathIfNeeded(szArglist[i]));
-  LocalFree(szArglist);
+  // Keep original args, skip argv[0]
+  for (int i = 1; i < originArgsLen; i++)
+    args.push_back(originArgs[i]);
+  LocalFree(originArgs);
 
-  std::wstring my_command_line;
-  for (auto str : command_line) {
-    my_command_line += str;
-    my_command_line += L" ";
+  std::wstring commandLine;
+  for (auto a : args) {
+    // Add quotes if needed
+    bool quotes = (a[0] != '"') &&                     // No quote at begin
+                  (*(--a.end()) != '"') &&             // No quote at end
+                  (a.find(' ') != std::wstring::npos); // Has spaces
+    commandLine += quotes ? L'"' + a + L'"' : a;
+    commandLine += L' ';
   }
-
-  return my_command_line;
+  return commandLine;
 }
 
 HANDLE FirstRun;
 bool IsFirstRun() {
-  bool first_run = false;
-  FirstRun =
-      CreateMutexW(NULL, TRUE, L"{56A17F97-9F89-4926-8415-446649F25EB5}");
-  if (GetLastError() == ERROR_SUCCESS) {
-    first_run = true;
-  }
-
-  return first_run;
+  const wchar_t *uuid = L"{56A17F97-9F89-4926-8415-446649F25EB5}";
+  FirstRun = CreateMutexW(NULL, TRUE, uuid);
+  return GetLastError() == ERROR_SUCCESS;
 }
 
 // 自定义启动参数
@@ -121,22 +110,22 @@ void CustomCommand(const wchar_t *exeFolder, const wchar_t *exePath,
   // }
 
   // 启动进程
-  STARTUPINFOW si = {0};
-  PROCESS_INFORMATION pi = {0};
-  si.cb = sizeof(STARTUPINFO);
+  STARTUPINFOW startInfo = {0};
+  PROCESS_INFORMATION procInfo = {0};
+  startInfo.cb = sizeof(STARTUPINFO);
 
   // 根据配置文件插入额外的命令行参数
-  std::wstring my_command_line = GetCommand(exeFolder);
+  std::wstring commandLine = GetCommand(exeFolder);
 
-  BOOL s = CreateProcessW(exePath, (LPWSTR)my_command_line.c_str(), NULL, NULL,
-                          false,
-                          CREATE_NEW_CONSOLE | CREATE_UNICODE_ENVIRONMENT |
-                              CREATE_DEFAULT_ERROR_MODE,
-                          NULL, 0, &si, &pi);
-  AssertMsg(s, "CreateProcessW failed");
+  BOOL result =
+      CreateProcessW(exePath, (LPWSTR)commandLine.c_str(), NULL, NULL, false,
+                     CREATE_NEW_CONSOLE | CREATE_UNICODE_ENVIRONMENT |
+                         CREATE_DEFAULT_ERROR_MODE,
+                     NULL, 0, &startInfo, &procInfo);
+  AssertMsg(result, "CreateProcessW failed");
 
   if (first_run) {
-    WaitForSingleObject(pi.hProcess, INFINITE);
+    WaitForSingleObject(procInfo.hProcess, INFINITE);
 
     // 释放句柄
     CloseHandle(FirstRun);
@@ -145,49 +134,43 @@ void CustomCommand(const wchar_t *exeFolder, const wchar_t *exePath,
     // LaunchAtEnd(iniPath, exeFolder);
   }
 
-  CloseHandle(pi.hProcess);
-  CloseHandle(pi.hThread);
+  CloseHandle(procInfo.hProcess);
+  CloseHandle(procInfo.hThread);
 
   ExitProcess(0);
 }
 
-HMODULE hInstance;
-typedef int (*Startup)();
-Startup OriginEntry = NULL;
+typedef int (*EntryFn)();
+EntryFn OriginEntry = NULL;
 
 int Loader() {
-  const size_t MAX_LONGPATH = 2 * MAX_PATH;
-  // Could not use `_pgmptr` in DLL
-  wchar_t exePath[MAX_LONGPATH]; // Mitigating errors caused by long path
-  wchar_t exeDir[MAX_LONGPATH];
-  GetModuleFileNameW(NULL, exePath, MAX_LONGPATH);
+  wchar_t exePath[MAX_PATH];
+  wchar_t exeDir[MAX_PATH];
+  GetModuleFileNameW(NULL, exePath, MAX_PATH);
   _wsplitpath(exePath, nullptr, exeDir, nullptr, nullptr);
 
   MakePortable();
 
-  // 父进程不是Chrome，则需要启动追加参数功能
-  wchar_t parentPath[MAX_LONGPATH];
+  wchar_t parentPath[MAX_PATH];
   GetParentPath(parentPath);
   if (_wcsicmp(parentPath, exePath) != 0) {
-    // MessageBoxA(NULL, "Once", "LPCSTR lpCaption", MB_OK);
-    // if (PathFileExistsW(parentPath) && _wcsicmp(parentPath, exePath) != 0)
-    // { 启动单次功能
+    // Parent process is not chromium
     bool first_run = IsFirstRun();
     CustomCommand(exeDir, exePath, first_run);
   }
-  // Return to origin
-  return OriginEntry();
+
+  return OriginEntry(); // Return to origin entry
 }
 
-BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
-  if (fdwReason != DLL_PROCESS_ATTACH)
-    return TRUE; // Skip
-  hInstance = hinstDLL;
+BOOL WINAPI DllMain(HINSTANCE _hinstDLL, DWORD fdwReason, LPVOID _lpReserved) {
+  if (fdwReason != DLL_PROCESS_ATTACH) {
+    return TRUE;
+  }
 
-  MODULEINFO moduleInfo = {0};
-  GetModuleInformation(GetCurrentProcess(), GetModuleHandle(NULL), &moduleInfo,
+  MODULEINFO info = {0};
+  GetModuleInformation(GetCurrentProcess(), GetModuleHandle(NULL), &info,
                        sizeof(MODULEINFO));
-  LPVOID entry = moduleInfo.EntryPoint;
+  LPVOID entry = info.EntryPoint;
   MH_Initialize();
   MH_CreateHook(entry, (LPVOID)Loader, (LPVOID *)&OriginEntry);
   MH_EnableHook(entry);
