@@ -7,18 +7,26 @@
 
 > Thanks to [GreenChrome](https://github.com/shuax/GreenChrome).
 
-### Warning
+### Why
 
-This project is still developing.
+There are many features in GreenChrome that I don't need.
 
 ### Todo List
 
-0. BUG: open file by explorer when the browser is already running, `CreateProcessW` failed?
+0. Absolute `User Data` path, enable to call from other directory.
 
-1. Clean code.
-
-### Build
+### Usage
 
 You need [CMake](https://cmake.org) and [Ninja](https://ninja-build.org), then run `build.bat`.
 
-Use [setdll](https://github.com/Microsoft/Detours/tree/master/samples/setdll) to attach the DLL file.
+Use [setdll](https://github.com/Microsoft/Detours/tree/master/samples/setdll) to attach the DLL file:
+
+```batch
+cd /d %~dp0
+if exist chrome.exe~ (
+    del chrome.exe
+    ren chrome.exe~ chrome.exe
+)
+setdll /d:libcrknob.dll chrome.exe
+pause
+```
