@@ -97,9 +97,6 @@ void GetParentPath(wchar_t *path) {
   CloseHandle(hProcess);
 }
 
-typedef int (*EntryFn)();
-EntryFn OriginEntry = NULL;
-
 void PushArg(std::wstring &base, std::wstring item) {
   // Add quotes if needed
   bool quotes = (item[0] != '"') &&                     // No quote at begin
@@ -108,6 +105,9 @@ void PushArg(std::wstring &base, std::wstring item) {
   base += quotes ? L'"' + item + L'"' : item;
   base += L' ';
 }
+
+typedef int (*EntryFn)();
+EntryFn OriginEntry = NULL;
 
 int Entry() {
   LoadHooks();
