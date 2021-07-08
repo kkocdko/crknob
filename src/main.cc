@@ -1,13 +1,7 @@
 #include "MinHook.h"
+#include <cwchar>
 #include <psapi.h>
-#include <string>
 #include <windows.h>
-
-#ifdef _WIN64
-typedef uint64_t MWORD;
-#else
-typedef uint32_t MWORD;
-#endif
 
 // void AssertMsg(bool condition, std::string msg) {
 //   if (!condition) {
@@ -70,12 +64,12 @@ void LoadHooks() {
 
 DWORD GetParentPID() {
   typedef struct {
-    MWORD ExitStatus;
-    MWORD PebBaseAddress;
-    MWORD AffinityMask;
-    MWORD BasePriority;
-    MWORD UniqueProcessId;
-    MWORD InheritedFromUniqueProcessId;
+    size_t ExitStatus;
+    size_t PebBaseAddress;
+    size_t AffinityMask;
+    size_t BasePriority;
+    size_t UniqueProcessId;
+    size_t InheritedFromUniqueProcessId;
   } PROCESS_BASIC_INFORMATION;
   typedef NTSTATUS(WINAPI * FnNtQueryInformationProcess)(HANDLE, UINT, PVOID,
                                                          ULONG, PULONG);
@@ -97,15 +91,6 @@ void GetParentPath(wchar_t *path) {
   CloseHandle(hProcess);
 }
 
-void PushArg(std::wstring &base, std::wstring item) {
-  // Add quotes if needed
-  bool quotes = (item[0] != '"') &&                     // No quote at begin
-                (*--item.end() != '"') &&               // No quote at end
-                (item.find(' ') != std::wstring::npos); // Has spaces
-  base += quotes ? L'"' + item + L'"' : item;
-  base += L' ';
-}
-
 typedef int (*EntryFn)();
 EntryFn OriginEntry = NULL;
 
@@ -118,37 +103,48 @@ int Entry() {
   GetParentPath(parentPath);
 
   // Parent process is chromium
-  if (_wcsicmp(parentPath, exePath) == 0)
+  if (wcscmp(parentPath, exePath) == 0)
     return OriginEntry();
 
-  int originArgsLen;
-  LPWSTR *originArgs = CommandLineToArgvW(GetCommandLineW(), &originArgsLen);
-  // Already loaded
-  if (_wcsicmp(originArgs[1], L"--with-crknob") == 0)
-    return OriginEntry();
+  wchar_t *cmdLine = GetCommandLineW();
+  wchar_t *skipFirst = cmdLine + wcslen(exePath);
+  // 1. exePath = [C:\foo.exe]
+  // 2. exePath = ["C:\foo.exe"]
+  // 3. cmdLine = ["C:\foo.exe" --bar]
+  // 4. cmdLine = ["C:\foo.exe"   --bar]
 
-  std::wstring args;
-  PushArg(args, originArgs[0]);    // Keep argv[0]
-  PushArg(args, L"--with-crknob"); // Loaded flag
+  while (skipFirst[0] != ' ') // Adapt to 1st & 3rd
+    skipFirst += 1;
 
-  // Custom switches first, enable to override from terminal
-  // PushArg(args, L"--user-data-dir=\"User Data Test\"");
-  PushArg(args, L"--user-data-dir=\"User Data\""); // TODO: absolute
-  PushArg(args, L"--force-local-ntp");
-  PushArg(args, L"--enable-features=OverlayScrollbar");
-  PushArg(args, L"--disable-features=RendererCodeIntegrity,ReadLater");
+  auto firstLen = skipFirst - cmdLine; // Length of argv[0]
 
-  // Keep original args, skip argv[0]
-  for (int i = 1; i < originArgsLen; i++)
-    PushArg(args, originArgs[i]);
-  LocalFree(originArgs);
+  while (skipFirst[0] == ' ') // Adapt to the 4th case
+    skipFirst += 1;
+
+  const wchar_t *loadedMark = L"--with-crknob ";
+  if (wcsncmp(skipFirst, loadedMark, wcslen(loadedMark)) == 0)
+    return OriginEntry(); // Already loaded, return to origin entry
+
+  const wchar_t *insert = // Insert after argv[0], allow to overwrite from cmd
+      L" --with-crknob"
+      // L" --user-data-dir=\"User Data Test\""
+      L" --user-data-dir=\"User Data\"" // TODO: absolute
+      L" --force-local-ntp"
+      L" --disable-features=RendererCodeIntegrity,ReadLater";
+
+  size_t size = firstLen + wcslen(insert) + wcslen(skipFirst) + 4 /* \0 */;
+  wchar_t *args = (wchar_t *)calloc(size, sizeof(wchar_t));
+  wcsncpy(args, cmdLine, firstLen);
+  wcscat(args, insert);
+  wcscat(args, skipFirst);
 
   STARTUPINFOW startInfo = {0};
   PROCESS_INFORMATION procInfo = {0};
   startInfo.cb = sizeof(STARTUPINFO);
-  CreateProcessW(exePath, (LPWSTR)args.c_str(), NULL, NULL, false, NULL, NULL,
-                 0, &startInfo, &procInfo);
+  CreateProcessW(exePath, args, NULL, NULL, false, NULL, NULL, 0, &startInfo,
+                 &procInfo);
 
+  free(args);
   ExitProcess(0);
 }
 
