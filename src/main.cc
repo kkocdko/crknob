@@ -3,14 +3,7 @@
 #include <psapi.h>
 #include <windows.h>
 
-// void AssertMsg(bool condition, std::string msg) {
-//   if (!condition) {
-//     MessageBox(NULL, msg.c_str(), "AssertMsg", MB_OK);
-//     ExitProcess(1);
-//   }
-// }
-
-// void Msg(std::string msg) { MessageBox(NULL, msg.c_str(), "Msg", MB_OK); }
+// void Msg(wchar_t *msg) { MessageBoxW(NULL, msg, L"Msg", MB_OK); }
 
 BOOL WINAPI FakeCryptProtectData(DATA_BLOB *pIn, LPCWSTR _0, DATA_BLOB *_1,
                                  PVOID _2, CRYPTPROTECT_PROMPTSTRUCT *_3,
@@ -73,14 +66,12 @@ DWORD GetParentPID() {
   } PROCESS_BASIC_INFORMATION;
   typedef NTSTATUS(WINAPI * FnNtQueryInformationProcess)(HANDLE, UINT, PVOID,
                                                          ULONG, PULONG);
-  const NTSTATUS NTSTATUS_SUCCESS = 0x00000000L;
   auto NtQueryInformationProcess = (FnNtQueryInformationProcess)GetProcAddress(
       GetModuleHandleA("ntdll"), "NtQueryInformationProcess");
   PROCESS_BASIC_INFORMATION info;
-  NTSTATUS status = NtQueryInformationProcess(GetCurrentProcess(), 0,
-                                              (PVOID)&info, sizeof(info), NULL);
-  return status == NTSTATUS_SUCCESS ? (DWORD)info.InheritedFromUniqueProcessId
-                                    : 0;
+  NtQueryInformationProcess(GetCurrentProcess(), 0, (PVOID)&info, sizeof(info),
+                            NULL);
+  return (DWORD)info.InheritedFromUniqueProcessId;
 }
 
 void GetParentPath(wchar_t *path) {
@@ -106,19 +97,9 @@ int Entry() {
   if (wcscmp(parentPath, exePath) == 0)
     return OriginEntry();
 
-  wchar_t *cmdLine = GetCommandLineW();
-  wchar_t *skipFirst = cmdLine + wcslen(exePath);
-  // 1. exePath = [C:\foo.exe]
-  // 2. exePath = ["C:\foo.exe"]
-  // 3. cmdLine = ["C:\foo.exe" --bar]
-  // 4. cmdLine = ["C:\foo.exe"   --bar]
-
-  while (skipFirst[0] != ' ') // Adapt to 1st & 3rd
-    skipFirst += 1;
-
-  auto firstLen = skipFirst - cmdLine; // Length of argv[0]
-
-  while (skipFirst[0] == ' ') // Adapt to the 4th case
+  wchar_t *cmdLine = GetCommandLineW(); // ["C:\foo.exe"   --bar]
+  wchar_t *skipFirst = wcschr(cmdLine + 1, cmdLine[0] == '"' ? '"' : ' ') + 1;
+  while (skipFirst[0] == ' ')
     skipFirst += 1;
 
   const wchar_t *loadedMark = L"--with-crknob ";
@@ -130,10 +111,12 @@ int Entry() {
       // L" --user-data-dir=\"User Data Test\""
       L" --user-data-dir=\"User Data\"" // TODO: absolute
       L" --force-local-ntp"
-      L" --disable-features=RendererCodeIntegrity,ReadLater";
+      L" --disable-features=RendererCodeIntegrity,ReadLater"
+      L" ";
 
-  size_t size = firstLen + wcslen(insert) + wcslen(skipFirst) + 4 /* \0 */;
-  wchar_t *args = (wchar_t *)calloc(size, sizeof(wchar_t));
+  size_t firstLen = skipFirst - cmdLine; // Length of argv[0]
+  size_t len = firstLen + wcslen(insert) + wcslen(skipFirst) + 4 /* \0 */;
+  wchar_t *args = (wchar_t *)calloc(len, sizeof(wchar_t));
   wcsncpy(args, cmdLine, firstLen);
   wcscat(args, insert);
   wcscat(args, skipFirst);
