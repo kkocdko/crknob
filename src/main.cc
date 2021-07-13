@@ -132,7 +132,7 @@ int Entry() {
   ExitProcess(0);
 }
 
-BOOL WINAPI DllMain(HINSTANCE _hinstDLL, DWORD fdwReason, LPVOID _lpReserved) {
+BOOL WINAPI __declspec(dllexport) DllMain(HINSTANCE _hinstDLL, DWORD fdwReason, LPVOID _lpReserved) {
   if (fdwReason != DLL_PROCESS_ATTACH)
     return TRUE;
 
