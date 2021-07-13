@@ -3,7 +3,8 @@
 #include <psapi.h>
 #include <windows.h>
 
-// void Msg(wchar_t *msg) { MessageBoxW(NULL, msg, L"Msg", MB_OK); }
+// #include <string>
+// void Msg(std::string msg) { MessageBox(NULL, msg.c_str(), "Msg", MB_OK); }
 
 BOOL WINAPI FakeCryptProtectData(DATA_BLOB *pIn, LPCWSTR _0, DATA_BLOB *_1,
                                  PVOID _2, CRYPTPROTECT_PROMPTSTRUCT *_3,
@@ -35,7 +36,7 @@ void LoadHooks() {
   // Hook some API about encryption and protect
 
   // chromium/rlz/win/lib/machine_id_win.cc
-  HMODULE kernel32 = LoadLibraryW(L"kernel32.dll");
+  HMODULE kernel32 = LoadLibrary("kernel32.dll");
   auto GetComputerNameW = (LPVOID)GetProcAddress(kernel32, "GetComputerNameW");
   auto GetVolumeInformationW =
       (LPVOID)GetProcAddress(kernel32, "GetVolumeInformationW");
@@ -45,7 +46,7 @@ void LoadHooks() {
   MH_EnableHook(GetVolumeInformationW);
 
   // chromium/components/os_crypt/os_crypt_win.cc
-  HMODULE crypt32 = LoadLibraryW(L"crypt32.dll");
+  HMODULE crypt32 = LoadLibrary("crypt32.dll");
   auto CryptProtectData = (LPVOID)GetProcAddress(crypt32, "CryptProtectData");
   auto CryptUnprotectData =
       (LPVOID)GetProcAddress(crypt32, "CryptUnprotectData");
@@ -74,11 +75,11 @@ DWORD GetParentPID() {
   return (DWORD)info.InheritedFromUniqueProcessId;
 }
 
-void GetParentPath(wchar_t *path) {
+void GetParentPath(char *path) {
   HANDLE hProcess =
       OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, GetParentPID());
   DWORD dwSize = MAX_PATH;
-  QueryFullProcessImageNameW(hProcess, 0, path, &dwSize);
+  QueryFullProcessImageName(hProcess, 0, path, &dwSize);
   CloseHandle(hProcess);
 }
 
@@ -88,44 +89,44 @@ EntryFn OriginEntry = NULL;
 int Entry() {
   LoadHooks();
 
-  wchar_t exePath[MAX_PATH];
-  wchar_t parentPath[MAX_PATH];
-  GetModuleFileNameW(NULL, exePath, MAX_PATH);
+  char exePath[MAX_PATH];
+  char parentPath[MAX_PATH];
+  GetModuleFileName(NULL, exePath, MAX_PATH);
   GetParentPath(parentPath);
 
   // Parent process is chromium
-  if (wcscmp(parentPath, exePath) == 0)
+  if (strcmp(parentPath, exePath) == 0)
     return OriginEntry();
 
-  wchar_t *cmdLine = GetCommandLineW(); // ["C:\foo.exe"   --bar]
-  wchar_t *skipFirst = wcschr(cmdLine + 1, cmdLine[0] == '"' ? '"' : ' ') + 1;
+  char *cmdLine = GetCommandLine(); // ["C:\foo.exe"   --bar]
+  char *skipFirst = strchr(cmdLine + 1, cmdLine[0] == '"' ? '"' : ' ') + 1;
   while (skipFirst[0] == ' ')
     skipFirst += 1;
 
-  const wchar_t *loadedMark = L"--with-crknob ";
-  if (wcsncmp(skipFirst, loadedMark, wcslen(loadedMark)) == 0)
+  const char *loadedMark = "--with-crknob ";
+  if (strncmp(skipFirst, loadedMark, strlen(loadedMark)) == 0)
     return OriginEntry(); // Already loaded, return to origin entry
 
-  const wchar_t *insert = // Insert after argv[0], allow to overwrite from cmd
-      L" --with-crknob"
-      // L" --user-data-dir=\"User Data Test\""
-      L" --user-data-dir=\"User Data\"" // TODO: absolute
-      L" --force-local-ntp"
-      L" --disable-features=RendererCodeIntegrity,ReadLater"
-      L" ";
+  const char *insert = // Insert after argv[0], allow to overwrite from cmd
+      " --with-crknob"
+      // " --user-data-dir=\"User Data Test\""
+      " --user-data-dir=\"User Data\"" // TODO: absolute
+      " --force-local-ntp"
+      " --disable-features=RendererCodeIntegrity,ReadLater"
+      " ";
 
   size_t firstLen = skipFirst - cmdLine; // Length of argv[0]
-  size_t len = firstLen + wcslen(insert) + wcslen(skipFirst) + 4 /* \0 */;
-  wchar_t *args = (wchar_t *)calloc(len, sizeof(wchar_t));
-  wcsncpy(args, cmdLine, firstLen);
-  wcscat(args, insert);
-  wcscat(args, skipFirst);
+  size_t len = firstLen + strlen(insert) + strlen(skipFirst) + 4 /* \0 */;
+  char *args = (char *)calloc(len, sizeof(char));
+  strncpy(args, cmdLine, firstLen);
+  strcat(args, insert);
+  strcat(args, skipFirst);
 
-  STARTUPINFOW startInfo = {0};
+  STARTUPINFO startInfo = {0};
   PROCESS_INFORMATION procInfo = {0};
   startInfo.cb = sizeof(STARTUPINFO);
-  CreateProcessW(exePath, args, NULL, NULL, false, NULL, NULL, 0, &startInfo,
-                 &procInfo);
+  CreateProcess(exePath, args, NULL, NULL, false, NORMAL_PRIORITY_CLASS, NULL,
+                0, &startInfo, &procInfo);
 
   free(args);
   ExitProcess(0);
