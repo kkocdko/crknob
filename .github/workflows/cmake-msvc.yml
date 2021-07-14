@@ -37,19 +37,19 @@ jobs:
       with:
         repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Upload Build
-      uses: actions/upload-artifact@v2
-      if: startsWith(github.ref, 'refs/tags/')
-      with:
-        name: msvc-build
-        files: "build/"
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    # - name: Upload Build
+    #   uses: actions/upload-artifact@v2
+    #   if: startsWith(github.ref, 'refs/tags/')
+    #   with:
+    #     name: msvc-build
+    #     files: "build/"
+    #   env:
+    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: "build/**/*.dll"
-        tag_name: "0.0.0"
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    # - name: Release
+    #   uses: softprops/action-gh-release@v1
+    #   with:
+    #     files: "build/**/*.dll"
+    #     tag_name: "0.0.0"
+    #   env:
+    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
