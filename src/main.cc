@@ -37,23 +37,19 @@ void LoadHooks() {
 
   // chromium/rlz/win/lib/machine_id_win.cc
   HMODULE kernel32 = LoadLibrary("kernel32.dll");
-  auto GetComputerNameW = (LPVOID)GetProcAddress(kernel32, "GetComputerNameW");
-  auto GetVolumeInformationW =
-      (LPVOID)GetProcAddress(kernel32, "GetVolumeInformationW");
-  MH_CreateHook(GetComputerNameW, (LPVOID)FakeGetComputerName, NULL);
-  MH_EnableHook(GetComputerNameW);
-  MH_CreateHook(GetVolumeInformationW, (LPVOID)FakeGetVolumeInformation, NULL);
-  MH_EnableHook(GetVolumeInformationW);
+  MH_CreateHook((LPVOID)GetProcAddress(kernel32, "GetComputerNameW"),
+                (LPVOID)FakeGetComputerName, NULL);
+  MH_CreateHook((LPVOID)GetProcAddress(kernel32, "GetVolumeInformationW"),
+                (LPVOID)FakeGetVolumeInformation, NULL);
 
   // chromium/components/os_crypt/os_crypt_win.cc
   HMODULE crypt32 = LoadLibrary("crypt32.dll");
-  auto CryptProtectData = (LPVOID)GetProcAddress(crypt32, "CryptProtectData");
-  auto CryptUnprotectData =
-      (LPVOID)GetProcAddress(crypt32, "CryptUnprotectData");
-  MH_CreateHook(CryptProtectData, (LPVOID)FakeCryptProtectData, NULL);
-  MH_EnableHook(CryptProtectData);
-  MH_CreateHook(CryptUnprotectData, (LPVOID)FakeCryptUnprotectData, NULL);
-  MH_EnableHook(CryptUnprotectData);
+  MH_CreateHook((LPVOID)GetProcAddress(crypt32, "CryptProtectData"),
+                (LPVOID)FakeCryptProtectData, NULL);
+  MH_CreateHook((LPVOID)GetProcAddress(crypt32, "CryptUnprotectData"),
+                (LPVOID)FakeCryptUnprotectData, NULL);
+
+  MH_EnableHook(MH_ALL_HOOKS);
 }
 
 DWORD GetParentPID() {
@@ -112,7 +108,7 @@ int Entry() {
       // " --user-data-dir=\"User Data Test\""
       " --user-data-dir=\"User Data\"" // TODO: absolute
       " --force-local-ntp"
-      " --disable-features=RendererCodeIntegrity,ReadLater"
+      " --disable-features=RendererCodeIntegrity"
       " ";
 
   size_t firstLen = skipFirst - cmdLine; // Length of argv[0]
@@ -122,8 +118,8 @@ int Entry() {
   strcat(args, insert);
   strcat(args, skipFirst);
 
-  STARTUPINFO startInfo = {0};
-  PROCESS_INFORMATION procInfo = {0};
+  STARTUPINFO startInfo;
+  PROCESS_INFORMATION procInfo;
   startInfo.cb = sizeof(STARTUPINFO);
   CreateProcess(exePath, args, NULL, NULL, false, NORMAL_PRIORITY_CLASS, NULL,
                 0, &startInfo, &procInfo);
@@ -132,16 +128,16 @@ int Entry() {
   ExitProcess(0);
 }
 
-__declspec(dllexport) BOOL WINAPI DllMain(HINSTANCE _hinstDLL, DWORD fdwReason, LPVOID _lpReserved) {
+__declspec(dllexport) BOOL WINAPI
+    DllMain(HINSTANCE _hinstDLL, DWORD fdwReason, LPVOID _lpReserved) {
   if (fdwReason != DLL_PROCESS_ATTACH)
     return TRUE;
 
-  MODULEINFO info = {0};
+  MODULEINFO info;
   GetModuleInformation(GetCurrentProcess(), GetModuleHandle(NULL), &info,
                        sizeof(MODULEINFO));
-  LPVOID entry = info.EntryPoint;
   MH_Initialize();
-  MH_CreateHook(entry, (LPVOID)Entry, (LPVOID *)&OriginEntry);
-  MH_EnableHook(entry);
+  MH_CreateHook(info.EntryPoint, (LPVOID)Entry, (LPVOID *)&OriginEntry);
+  MH_EnableHook(MH_ALL_HOOKS);
   return TRUE;
 }
