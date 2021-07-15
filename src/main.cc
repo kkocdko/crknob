@@ -34,25 +34,21 @@ BOOL WINAPI FakeGetVolumeInformation(LPCTSTR _0, LPTSTR _1, DWORD _2,
 
 void LoadHooks() {
   // Hook some API about encryption and protect
-
-  // chromium/rlz/win/lib/machine_id_win.cc
+  // `rlz/win/lib/machine_id_win.cc` and `components/os_crypt/os_crypt_win.cc`
   HMODULE kernel32 = LoadLibrary("kernel32.dll");
+  HMODULE crypt32 = LoadLibrary("crypt32.dll");
   MH_CreateHook((LPVOID)GetProcAddress(kernel32, "GetComputerNameW"),
                 (LPVOID)FakeGetComputerName, NULL);
   MH_CreateHook((LPVOID)GetProcAddress(kernel32, "GetVolumeInformationW"),
                 (LPVOID)FakeGetVolumeInformation, NULL);
-
-  // chromium/components/os_crypt/os_crypt_win.cc
-  HMODULE crypt32 = LoadLibrary("crypt32.dll");
   MH_CreateHook((LPVOID)GetProcAddress(crypt32, "CryptProtectData"),
                 (LPVOID)FakeCryptProtectData, NULL);
   MH_CreateHook((LPVOID)GetProcAddress(crypt32, "CryptUnprotectData"),
                 (LPVOID)FakeCryptUnprotectData, NULL);
-
   MH_EnableHook(MH_ALL_HOOKS);
 }
 
-DWORD GetParentPID() {
+void GetParentPath(char *path) {
   typedef struct {
     size_t ExitStatus;
     size_t PebBaseAddress;
@@ -64,19 +60,14 @@ DWORD GetParentPID() {
   typedef NTSTATUS(WINAPI * FnNtQueryInformationProcess)(HANDLE, UINT, PVOID,
                                                          ULONG, PULONG);
   auto NtQueryInformationProcess = (FnNtQueryInformationProcess)GetProcAddress(
-      GetModuleHandleA("ntdll"), "NtQueryInformationProcess");
+      GetModuleHandle("ntdll"), "NtQueryInformationProcess");
   PROCESS_BASIC_INFORMATION info;
-  NtQueryInformationProcess(GetCurrentProcess(), 0, (PVOID)&info, sizeof(info),
-                            NULL);
-  return (DWORD)info.InheritedFromUniqueProcessId;
-}
-
-void GetParentPath(char *path) {
-  HANDLE hProcess =
-      OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, GetParentPID());
+  NtQueryInformationProcess(GetCurrentProcess(), 0, &info, sizeof(info), NULL);
+  HANDLE parent = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE,
+                              info.InheritedFromUniqueProcessId);
   DWORD dwSize = MAX_PATH;
-  QueryFullProcessImageName(hProcess, 0, path, &dwSize);
-  CloseHandle(hProcess);
+  QueryFullProcessImageName(parent, 0, path, &dwSize);
+  CloseHandle(parent);
 }
 
 typedef int (*EntryFn)();
@@ -94,7 +85,7 @@ int Entry() {
   if (strcmp(parentPath, exePath) == 0)
     return OriginEntry();
 
-  char *cmdLine = GetCommandLine(); // ["C:\foo.exe"   --bar]
+  char *cmdLine = GetCommandLine(); // `"C:\foo.exe"   --bar`
   char *skipFirst = strchr(cmdLine + 1, cmdLine[0] == '"' ? '"' : ' ') + 1;
   while (skipFirst[0] == ' ')
     skipFirst += 1;
