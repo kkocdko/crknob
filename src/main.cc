@@ -48,7 +48,7 @@ void LoadHooks() {
   MH_EnableHook(MH_ALL_HOOKS);
 }
 
-void GetParentPath(char *path) {
+DWORD GetParentPID() {
   typedef struct {
     size_t ExitStatus;
     size_t PebBaseAddress;
@@ -63,11 +63,15 @@ void GetParentPath(char *path) {
       GetModuleHandle("ntdll"), "NtQueryInformationProcess");
   PROCESS_BASIC_INFORMATION info;
   NtQueryInformationProcess(GetCurrentProcess(), 0, &info, sizeof(info), NULL);
-  HANDLE parent = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE,
-                              info.InheritedFromUniqueProcessId);
+  return (DWORD)info.InheritedFromUniqueProcessId;
+}
+
+void GetParentPath(char *path) {
+  HANDLE hProcess =
+      OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, GetParentPID());
   DWORD dwSize = MAX_PATH;
-  QueryFullProcessImageName(parent, 0, path, &dwSize);
-  CloseHandle(parent);
+  QueryFullProcessImageName(hProcess, 0, path, &dwSize);
+  CloseHandle(hProcess);
 }
 
 typedef int (*EntryFn)();
