@@ -33,14 +33,8 @@ jobs:
       # Build your program with the given configuration
       run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
 
-    - uses: actions/labeler@v2
-      with:
-        repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Upload Build
+    - name: Upload Artifacts
       uses: actions/upload-artifact@v2
       with:
-        name: msvc-build
-        files: "build/"
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        name: crknob-msvc-build
+        path: build
