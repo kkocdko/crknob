@@ -42,24 +42,26 @@ EntryFn OriginEntry = NULL;
 int Entry() {
   LoadHooks();
 
-  char *cmdLine = GetCommandLine(); // Example: ["C:\foo.exe"   --bar]
-  char *skipFirst = strchr(cmdLine + 1, cmdLine[0] == '"' ? '"' : ' ') + 1;
+  const char *line = GetCommandLine(); // Example: ["C:\foo.exe"   --bar]
+  const char *skipFirst = strchr(line + 1, line[0] == '"' ? '"' : ' ') + 1;
   while (*skipFirst == ' ')
     skipFirst += 1;
 
-  const char *loadedMark = "--with-crknob ";
-  if (strncmp(skipFirst, loadedMark, strlen(loadedMark)) == 0)
+  const char *mark1 = "--crknob-loaded ";
+  const char *mark2 = "--type="; // Current is sub process
+  if (strncmp(skipFirst, mark1, strlen(mark1)) == 0 ||
+      strncmp(skipFirst, mark2, strlen(mark2)) == 0)
     return OriginEntry(); // Already loaded, return to origin entry
 
   const char *insert = // Insert after argv[0], allow to overwrite from cmd
-      " --with-crknob"
+      " --crknob-loaded"
       " --force-local-ntp"
       " --disable-features=RendererCodeIntegrity"
       " --user-data-dir=\"User Data\"" // TODO: absolute
       " ";
 
-  char args[32767]; // https://devblogs.microsoft.com/oldnewthing/2003/12/10
-  strncpy(args, cmdLine, skipFirst - cmdLine); // argv[0]
+  char args[32768] = {0}; // Max length, https://stackoverflow.com/a/28452546
+  strncpy(args, line, skipFirst - line); // Keep argv[0]
   strcat(args, insert);
   strcat(args, skipFirst);
 

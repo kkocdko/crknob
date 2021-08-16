@@ -15,8 +15,6 @@ There are many features in GreenChrome that I don't need.
 
 - Absolute `User Data` path, enable to call from other directory.
 
-- Fit [minhook - 4a45552](https://github.com/TsudaKageyu/minhook/commit/4a45552)?
-
 ### Usage
 
 ```batch
