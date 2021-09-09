@@ -3,24 +3,22 @@
 #include <string.h>
 #include <windows.h>
 
-BOOL WINAPI Fake1(LPWSTR _0, LPDWORD _1) { return 0; }
+BOOL WINAPI FakeGetComputerName(LPWSTR _0, LPDWORD _1) { return 0; }
 
-BOOL WINAPI Fake2(LPCWSTR _0, LPWSTR _1, DWORD _2, LPDWORD _3, LPDWORD _4,
-                  LPDWORD _5, LPWSTR _6, DWORD _7) {
+BOOL WINAPI FakeGetVolumeInfo(LPCWSTR _0, LPWSTR _1, DWORD _2, LPDWORD _3,
+                              LPDWORD _4, LPDWORD _5, LPWSTR _6, DWORD _7) {
   return 0;
 }
 
-BOOL WINAPI FakeCrypt(DATA_BLOB *pIn, LPCWSTR _1, DATA_BLOB *_2, PVOID _3,
-                      CRYPTPROTECT_PROMPTSTRUCT *_4, DWORD _5,
-                      DATA_BLOB *pOut) {
-  pOut->cbData = pIn->cbData;
-  pOut->pbData = (BYTE *)LocalAlloc(LMEM_FIXED, pOut->cbData);
-  CopyMemory(pOut->pbData, pIn->pbData, pOut->cbData);
+BOOL WINAPI FakeCrypt(DATA_BLOB *i, LPCWSTR _1, DATA_BLOB *_2, PVOID _3,
+                      CRYPTPROTECT_PROMPTSTRUCT *_4, DWORD _5, DATA_BLOB *o) {
+  o->cbData = i->cbData;
+  o->pbData = (BYTE *)LocalAlloc(LMEM_FIXED, o->cbData);
+  memcpy(o->pbData, i->pbData, o->cbData);
   return TRUE;
 }
 
-typedef int (*EntryFn)();
-EntryFn OriginEntry = NULL;
+FARPROC OriginEntry;
 
 int Entry() {
   LPCWSTR loadedFlag = L"CRKNOB_LOADED";
@@ -30,9 +28,9 @@ int Entry() {
     HMODULE kernel32 = LoadLibraryW(L"kernel32.dll");
     HMODULE crypt32 = LoadLibraryW(L"crypt32.dll");
     MH_CreateHook((LPVOID)GetProcAddress(kernel32, "GetComputerNameW"),
-                  (LPVOID)Fake1, NULL);
+                  (LPVOID)FakeGetComputerName, NULL);
     MH_CreateHook((LPVOID)GetProcAddress(kernel32, "GetVolumeInformationW"),
-                  (LPVOID)Fake2, NULL);
+                  (LPVOID)FakeGetVolumeInfo, NULL);
     MH_CreateHook((LPVOID)GetProcAddress(crypt32, "CryptProtectData"),
                   (LPVOID)FakeCrypt, NULL);
     MH_CreateHook((LPVOID)GetProcAddress(crypt32, "CryptUnprotectData"),

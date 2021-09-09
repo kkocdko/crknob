@@ -1,21 +1,12 @@
-<div align="center">
-<h2>crknob</h2>
-<p>Simple tool for chromium on windows.</p>
-<img src="https://flat.badgen.net/github/release/kkocdko/crknob?color=4caf50">
-<img src="https://flat.badgen.net/github/license/kkocdko/crknob?color=4caf50">
-</div>
+# crknob
 
-> Thanks to [GreenChrome](https://github.com/shuax/GreenChrome).
+[![CI](https://img.shields.io/github/workflow/status/kkocdko/crknob/CI?color=08c)](https://github.com/kkocdko/crknob/actions)
+[![Download](https://img.shields.io/github/downloads/kkocdko/crknob/total?color=08c)](https://github.com/kkocdko/crknob/releases#:~:text=Assets)
+[![License](https://img.shields.io/github/license/kkocdko/crknob?color=08c)](LICENSE)
 
-### Why
+Chromium portable patch on windows.
 
-There are many features in GreenChrome that I don't need.
-
-### Todo List
-
-- Absolute `User Data` path, enable to call from other directory.
-
-### Usage
+## Build
 
 ```batch
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -24,6 +15,10 @@ ninja -C build
 
 Then attach the DLL file by [setdll](https://github.com/Microsoft/Detours/tree/master/samples/setdll).
 
-### Contributing
+## Alternative
+
+[GreenChrome](https://github.com/shuax/GreenChrome), this program's predecessor, more functions.
+
+## Contributing
 
 Follow [clang-format](https://clang.llvm.org/docs/ClangFormat.html) and winapi style identifier naming rules.
