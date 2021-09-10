@@ -3,22 +3,23 @@
 #include <string.h>
 #include <windows.h>
 
-BOOL WINAPI FakeGetComputerName(LPWSTR _0, LPDWORD _1) { return 0; }
+BOOL WINAPI FakeGetComputerName(LPWSTR, LPDWORD) { return 0; }
 
-BOOL WINAPI FakeGetVolumeInfo(LPCWSTR _0, LPWSTR _1, DWORD _2, LPDWORD _3,
-                              LPDWORD _4, LPDWORD _5, LPWSTR _6, DWORD _7) {
+BOOL WINAPI FakeGetVolumeInfo(LPCWSTR, LPWSTR, DWORD, LPDWORD, LPDWORD, LPDWORD,
+                              LPWSTR, DWORD) {
   return 0;
 }
 
-BOOL WINAPI FakeCrypt(DATA_BLOB *i, LPCWSTR _1, DATA_BLOB *_2, PVOID _3,
-                      CRYPTPROTECT_PROMPTSTRUCT *_4, DWORD _5, DATA_BLOB *o) {
+BOOL WINAPI FakeCrypt(DATA_BLOB *i, LPCWSTR, DATA_BLOB *, PVOID,
+                      CRYPTPROTECT_PROMPTSTRUCT *, DWORD, DATA_BLOB *o) {
   o->cbData = i->cbData;
   o->pbData = (BYTE *)LocalAlloc(LMEM_FIXED, o->cbData);
   memcpy(o->pbData, i->pbData, o->cbData);
   return TRUE;
 }
 
-FARPROC OriginEntry;
+typedef int (*EntryFn)();
+EntryFn OriginEntry;
 
 int Entry() {
   LPCWSTR loadedFlag = L"CRKNOB_LOADED";
@@ -41,14 +42,14 @@ int Entry() {
   SetEnvironmentVariableW(loadedFlag, L"");
 
   LPCWSTR line = GetCommandLineW(); // Example: `"C:\foo.exe" --bar`
-  LPCWSTR skipFirst = wcschr(line + 1, line[0] == '"' ? '"' : ' ') + 1;
+  LPCWSTR skipFirst = wcschr(line + 1, line[0] == L'"' ? L'"' : L' ') + 1;
   LPCWSTR insert = // Insert after argv[0], allow to overwrite again
       " --disable-features=RendererCodeIntegrity"
       " --force-local-ntp"
       " --user-data-dir=\"User Data\"" // TODO: absolute
       L" ";
   WCHAR args[32768]; // Max length, https://stackoverflow.com/a/28452546
-  wcsncpy(args, line, skipFirst - line); // Keep argv[0]
+  wcsncpy(args, line, (size_t)(skipFirst - line)); // Keep argv[0]
   wcscat(args, insert);
   wcscat(args, skipFirst);
 
@@ -60,8 +61,7 @@ int Entry() {
   ExitProcess(0);
 }
 
-__declspec(dllexport) BOOL WINAPI
-    DllMain(HINSTANCE _hinstDLL, DWORD fdwReason, LPVOID _lpReserved) {
+__declspec(dllexport) BOOL WINAPI DllMain(HINSTANCE, DWORD fdwReason, LPVOID) {
   if (fdwReason != DLL_PROCESS_ATTACH)
     return TRUE;
   MODULEINFO info;
