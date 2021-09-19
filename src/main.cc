@@ -42,7 +42,8 @@ int Entry() {
   SetEnvironmentVariableW(loadedFlag, L"");
 
   LPCWSTR line = GetCommandLineW(); // Example: `"C:\foo.exe" --bar`
-  LPCWSTR skipFirst = wcschr(line + 1, line[0] == L'"' ? L'"' : L' ') + 1;
+  LPCWSTR skipFirst = wcschr(line + 1, line[0] == L'"' ? L'"' : L' ');
+  skipFirst = skipFirst == NULL ? line + wcslen(line) : skipFirst + 1;
   LPCWSTR insert = // Insert after argv[0], allow to overwrite again
       " --disable-features=RendererCodeIntegrity"
       " --force-local-ntp"
