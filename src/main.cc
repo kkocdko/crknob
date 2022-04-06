@@ -43,14 +43,14 @@ int Entry() {
 
   LPCWSTR line = GetCommandLineW(); // Example: `"C:\foo.exe" --bar`
   LPCWSTR skipFirst = wcschr(line + 1, line[0] == L'"' ? L'"' : L' ');
-  skipFirst = skipFirst == NULL ? line + wcslen(line) : skipFirst + 1;
+  skipFirst = skipFirst ? skipFirst + 1 : line + wcslen(line);
   LPCWSTR insert = // Insert after argv[0], allow to overwrite again
       " --disable-features=RendererCodeIntegrity"
       " --force-local-ntp"
-      " --user-data-dir=\"User Data\"" // TODO: absolute
+      " --user-data-dir=\"User Data\""
       L" ";
   WCHAR args[32768]; // Max length, https://stackoverflow.com/a/28452546
-  wcsncpy(args, line, (size_t)(skipFirst - line)); // Keep argv[0]
+  wcsncpy(args, line, skipFirst - line); // Keep argv[0]
   wcscat(args, insert);
   wcscat(args, skipFirst);
 
